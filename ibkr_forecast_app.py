@@ -10,7 +10,7 @@ from ib_insync import *
 
 st.set_page_config(page_title="IBKR Go for Gold Trader", layout="wide")
 st.title("IBKR ForecastTrader – Go for Gold Trader")
-st.markdown("**Version 2.5 – Monthly Capital Tracker** – every public source + live X sentiment. Monthly $500 inflow tracked. $500 stake optimised for fastest compounding.")
+st.markdown("**Version 2.5 – Monthly Capital Tracker** – every public source + live X sentiment. Monthly $500 inflow tracked.")
 
 # Monthly capital tracker
 st.sidebar.header("Monthly Capital Inflow")
@@ -103,7 +103,6 @@ if st.button("🚀 Run Ultra Maximum Edge Scan + Monthly Capital Update", type="
     target_date_str = (datetime.now().date() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     threshold_f = 66.5
 
-    # Temperature
     for city, cfg in CITY_CONFIG.items():
         metar = get_metar(cfg["icao"])
         ensemble = get_ensemble_data(cfg["lat"], cfg["lon"])
@@ -120,7 +119,7 @@ if st.button("🚀 Run Ultra Maximum Edge Scan + Monthly Capital Update", type="
         edge = prob_yes - live_yes - 0.002
         x_sent = get_x_sentiment(f"{city} weather")
         rec = "STRONG BUY YES" if edge > 0.10 else "BUY YES" if edge > 0.08 else "CHECK IN IBKR"
-        recommended_stake = round(BANKROLL * kelly_fraction * max(edge, 0), 2)
+        recommended_stake = round(current_balance * kelly_fraction * max(edge, 0), 2)
         results.append({
             "Type": "Temperature",
             "Contract": f"{city} High > {threshold_f}°F",
@@ -142,7 +141,7 @@ if st.button("🚀 Run Ultra Maximum Edge Scan + Monthly Capital Update", type="
         "Live_Yes_Price": 0.50,
         "Est_Prob_Yes": prob_co2,
         "Edge": round(edge_co2, 4),
-        "Recommended_Stake": round(BANKROLL * kelly_fraction * max(edge_co2, 0), 2),
+        "Recommended_Stake": round(current_balance * kelly_fraction * max(edge_co2, 0), 2),
         "Recommendation": "STRONG BUY YES" if edge_co2 > 0.10 else "BUY YES" if edge_co2 > 0.08 else "CHECK IN IBKR",
         "Detail": f"Mauna Loa {co2} ppm"
     })
@@ -156,7 +155,7 @@ if st.button("🚀 Run Ultra Maximum Edge Scan + Monthly Capital Update", type="
         "Live_Yes_Price": 0.50,
         "Est_Prob_Yes": fed_prob,
         "Edge": round(edge_fed, 4),
-        "Recommended_Stake": round(BANKROLL * kelly_fraction * max(edge_fed, 0), 2),
+        "Recommended_Stake": round(current_balance * kelly_fraction * max(edge_fed, 0), 2),
         "Recommendation": "STRONG BUY YES" if edge_fed > 0.10 else "BUY YES" if edge_fed > 0.08 else "CHECK IN IBKR",
         "Detail": "CME FedWatch"
     })
@@ -164,7 +163,7 @@ if st.button("🚀 Run Ultra Maximum Edge Scan + Monthly Capital Update", type="
     df = pd.DataFrame(results)
     df = df[df["Edge"] > 0.08].sort_values(by="Edge", ascending=False)
 
-    st.success("Ultra Maximum Edge scan complete – every source + live X sentiment exploited")
+    st.success("Ultra Maximum Edge scan complete")
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     if not df.empty:
