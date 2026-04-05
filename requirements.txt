@@ -1,2 +1,6 @@
 streamlit
-Pillow
+nest_asyncio
+requests
+pandas
+ib_insync
+yfinance
