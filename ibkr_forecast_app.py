@@ -11,14 +11,13 @@ from ib_insync import *
 
 st.set_page_config(page_title="IBKR Go for Gold Trader", layout="wide")
 st.title("IBKR ForecastTrader – Go for Gold Trader")
-st.markdown("**Version 2.6 – Live TWS Fixed** – full live prices + balance pull + one-click trading. Monthly $500 inflow tracked.")
+st.markdown("**Version 2.6 Fixed** – live TWS prices + balance pull + one-click trading. Monthly $500 inflow tracked.")
 
-# Monthly capital tracker
 st.sidebar.header("Monthly Capital Inflow")
 current_balance = st.sidebar.number_input("Current IBKR balance (AUD)", value=500.0, step=10.0)
 monthly_deposit = st.sidebar.number_input("Monthly deposit into IBKR (AUD)", value=500.0, step=50.0)
 if st.sidebar.button("Record Monthly Deposit"):
-    st.sidebar.success(f"Recorded +${monthly_deposit} – balance updated")
+    st.sidebar.success(f"Recorded +${monthly_deposit} – balance updated for next scan")
 
 RISK_MODE = st.sidebar.selectbox("Risk mode", ["Conservative (0.25 Kelly)", "Balanced (0.5 Kelly)", "Go for Gold (0.5 Kelly)"], index=2)
 kelly_fraction = 0.25 if "Conservative" in RISK_MODE else 0.5
@@ -40,7 +39,7 @@ def connect_tws():
         st.success("✅ Connected to TWS – pulling live prices and balance")
         return ib
     except Exception as e:
-        st.error(f"TWS connection failed: {e}")
+        st.error(f"TWS connection failed: {e}\n\nMake sure TWS is open, logged in, and API is enabled on port 7496.")
         return None
 
 def get_metar(icao):
@@ -141,4 +140,4 @@ if st.button("🚀 Run Live Maximum Edge Scan + Place Trades", type="primary"):
     if ib:
         ib.disconnect()
 
-st.sidebar.info("TWS must be running. Monthly deposit is automatically factored into stakes.")
+st.sidebar.info("TWS must be running and logged in. Monthly deposit is automatically factored into stakes.")
