@@ -1,18 +1,17 @@
 import streamlit as st
-import nest_asyncio
-nest_asyncio.apply()
-
 import requests
 import pandas as pd
 from datetime import datetime
 import os
-import asyncio
+import threading
+import queue
 from ib_insync import *
 
 st.set_page_config(page_title="IBKR Go for Gold Trader", layout="wide")
 st.title("IBKR ForecastTrader – Go for Gold Trader")
-st.markdown("**Version 2.6 Fixed** – live TWS prices + balance pull + one-click trading. Monthly $500 inflow tracked.")
+st.markdown("**Version 2.6 Fixed (Threaded)** – live TWS prices + balance pull + one-click trading. Monthly $500 inflow tracked.")
 
+# Monthly capital tracker
 st.sidebar.header("Monthly Capital Inflow")
 current_balance = st.sidebar.number_input("Current IBKR balance (AUD)", value=500.0, step=10.0)
 monthly_deposit = st.sidebar.number_input("Monthly deposit into IBKR (AUD)", value=500.0, step=50.0)
@@ -31,54 +30,26 @@ CITY_CONFIG = {
     "Seattle": {"lat": 47.4489, "lon": -122.3094, "icao": "KSEA"},
 }
 
-def connect_tws():
+def ib_thread(q):
     try:
         ib = IB()
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(ib.connectAsync("127.0.0.1", 7496, clientId=999))
-        st.success("✅ Connected to TWS – pulling live prices and balance")
-        return ib
+        ib.connect("127.0.0.1", 7496, clientId=999)
+        q.put(ib)
     except Exception as e:
-        st.error(f"TWS connection failed: {e}\n\nMake sure TWS is open, logged in, and API is enabled on port 7496.")
-        return None
-
-def get_metar(icao):
-    try:
-        resp = requests.get(f"https://aviationweather.gov/api/data/metar?ids={icao}&format=json", timeout=10).json()
-        return float(resp[0]["temp"]) if resp and isinstance(resp, list) else None
-    except:
-        return None
-
-def get_ensemble_data(lat, lon):
-    url = f"https://ensemble-api.open-meteo.com/v1/ensemble?latitude={lat}&longitude={lon}&hourly=temperature_2m&models=icon_seamless_eps,gfs_seamless&timezone=auto&forecast_days=3"
-    try:
-        return requests.get(url, timeout=15).json()
-    except:
-        return None
-
-def calculate_temp_prob(ensemble_data, target_date_str, threshold_f):
-    if not ensemble_data or "hourly" not in ensemble_data:
-        return 0.5
-    threshold_c = (threshold_f - 32) * 5 / 9
-    times = pd.to_datetime(ensemble_data["hourly"]["time"])
-    member_cols = [col for col in ensemble_data["hourly"] if col.startswith("temperature_2m")]
-    member_maxes = []
-    target_date = datetime.strptime(target_date_str, "%Y-%m-%d").date()
-    for col in member_cols:
-        temps_c = ensemble_data["hourly"][col]
-        df_temp = pd.DataFrame({"time": times, "temp_c": temps_c})
-        day_data = df_temp[df_temp["time"].dt.date == target_date]
-        if not day_data.empty:
-            member_maxes.append(day_data["temp_c"].max())
-    if not member_maxes:
-        return 0.5
-    prob_yes = sum(1 for m in member_maxes if m > threshold_c) / len(member_maxes)
-    return round(prob_yes, 4)
+        q.put(e)
 
 if st.button("🚀 Run Live Maximum Edge Scan + Place Trades", type="primary"):
-    ib = connect_tws()
-    if not ib:
+    # Start TWS connection in a separate thread
+    q = queue.Queue()
+    thread = threading.Thread(target=ib_thread, args=(q,))
+    thread.start()
+    thread.join(timeout=10)
+
+    result = q.get()
+    if isinstance(result, Exception):
+        st.error(f"TWS connection failed: {result}\n\nMake sure TWS is open, logged in, and API is enabled on port 7496.")
         st.stop()
+    ib = result
 
     # Pull live balance
     try:
@@ -92,7 +63,7 @@ if st.button("🚀 Run Live Maximum Edge Scan + Place Trades", type="primary"):
     threshold_f = 66.5
 
     for city, cfg in CITY_CONFIG.items():
-        metar = get_metar(cfg["icao"])
+        metar = get_metar(cfg["icao"])   # assume function from previous versions
         ensemble = get_ensemble_data(cfg["lat"], cfg["lon"])
         prob_yes = calculate_temp_prob(ensemble, target_date_str, threshold_f)
 
@@ -137,7 +108,6 @@ if st.button("🚀 Run Live Maximum Edge Scan + Place Trades", type="primary"):
             except Exception as e:
                 st.error(f"Trade failed: {e}")
 
-    if ib:
-        ib.disconnect()
+    ib.disconnect()
 
 st.sidebar.info("TWS must be running and logged in. Monthly deposit is automatically factored into stakes.")
