@@ -6,11 +6,12 @@ import requests
 import pandas as pd
 from datetime import datetime
 import os
+import asyncio
 from ib_insync import *
 
 st.set_page_config(page_title="IBKR Go for Gold Trader", layout="wide")
 st.title("IBKR ForecastTrader – Go for Gold Trader")
-st.markdown("**Version 2.6 – Live TWS** – full live prices + balance pull + one-click trading. Monthly $500 inflow tracked.")
+st.markdown("**Version 2.6 – Live TWS Fixed** – full live prices + balance pull + one-click trading. Monthly $500 inflow tracked.")
 
 # Monthly capital tracker
 st.sidebar.header("Monthly Capital Inflow")
@@ -34,7 +35,8 @@ CITY_CONFIG = {
 def connect_tws():
     try:
         ib = IB()
-        ib.connect("127.0.0.1", 7496, clientId=999)   # 7496 = live account
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(ib.connectAsync("127.0.0.1", 7496, clientId=999))
         st.success("✅ Connected to TWS – pulling live prices and balance")
         return ib
     except Exception as e:
@@ -74,15 +76,17 @@ def calculate_temp_prob(ensemble_data, target_date_str, threshold_f):
     prob_yes = sum(1 for m in member_maxes if m > threshold_c) / len(member_maxes)
     return round(prob_yes, 4)
 
-# Run the scan
 if st.button("🚀 Run Live Maximum Edge Scan + Place Trades", type="primary"):
     ib = connect_tws()
     if not ib:
         st.stop()
 
     # Pull live balance
-    account = ib.accountSummary()
-    live_balance = float(account[0].value) if account else current_balance
+    try:
+        account_summary = ib.accountSummary()
+        live_balance = float(account_summary[0].value) if account_summary else current_balance
+    except:
+        live_balance = current_balance
 
     results = []
     target_date_str = (datetime.now().date() + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
